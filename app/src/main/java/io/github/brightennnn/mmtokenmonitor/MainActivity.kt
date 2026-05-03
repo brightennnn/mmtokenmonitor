@@ -10,7 +10,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import io.github.brightennnn.mmtokenmonitor.data.repository.FontSizeRepository
 import io.github.brightennnn.mmtokenmonitor.data.repository.ThemeRepository
 import io.github.brightennnn.mmtokenmonitor.ui.navigation.AppNavHost
 import io.github.brightennnn.mmtokenmonitor.ui.theme.MiniMaxTokenTheme
@@ -19,9 +18,6 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-
-    @Inject
-    lateinit var fontSizeRepository: FontSizeRepository
 
     @Inject
     lateinit var themeRepository: ThemeRepository
@@ -40,7 +36,6 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     AppNavHost(
-                        fontSizeRepository = fontSizeRepository,
                         themeRepository = themeRepository
                     )
                 }

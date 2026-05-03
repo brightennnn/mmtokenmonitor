@@ -5,9 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.brightennnn.mmtokenmonitor.data.repository.FontSizeRepository
 import io.github.brightennnn.mmtokenmonitor.data.repository.ThemeRepository
-import io.github.brightennnn.mmtokenmonitor.domain.model.ContrastLevel
+import io.github.brightennnn.mmtokenmonitor.domain.model.ApiKeyProfile
 import io.github.brightennnn.mmtokenmonitor.domain.model.DarkMode
-import io.github.brightennnn.mmtokenmonitor.domain.model.PaletteStyle
 import io.github.brightennnn.mmtokenmonitor.domain.repository.TokenRepository
 import io.github.brightennnn.mmtokenmonitor.widget.TokenWidgetUpdater
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -39,13 +38,34 @@ class SettingsViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
+    // 多 Key 管理
+    private val _apiKeyProfiles = MutableStateFlow<List<ApiKeyProfile>>(emptyList())
+    val apiKeyProfiles: StateFlow<List<ApiKeyProfile>> = _apiKeyProfiles.asStateFlow()
+
+    private val _activeApiKeyId = MutableStateFlow<String?>(null)
+    val activeApiKeyId: StateFlow<String?> = _activeApiKeyId.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            repository.apiKeyProfiles.collect { profiles ->
+                _apiKeyProfiles.value = profiles
+            }
+        }
+        viewModelScope.launch {
+            repository.activeApiKey.collect { key ->
+                val active = _apiKeyProfiles.value.find { it.key == key }
+                _activeApiKeyId.value = active?.id
+            }
+        }
+    }
+
     init {
         loadSavedKey()
     }
 
     private fun loadSavedKey() {
         viewModelScope.launch {
-            repository.apiKey.collect { key ->
+            repository.activeApiKey.collect { key ->
                 _uiState.update { it.copy(apiKey = key ?: "", hasKey = !key.isNullOrBlank(), isEditing = false) }
             }
         }
@@ -61,7 +81,7 @@ class SettingsViewModel @Inject constructor(
 
     fun cancelEditing() {
         viewModelScope.launch {
-            val key = repository.apiKey.first()
+            val key = repository.activeApiKey.first()
             _uiState.update { it.copy(isEditing = false, apiKey = key ?: "") }
         }
     }
@@ -72,27 +92,64 @@ class SettingsViewModel @Inject constructor(
 
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
-            repository.saveApiKey(key)
+            repository.saveApiKey(key, "默认")
             _uiState.update { it.copy(hasKey = true, isEditing = false, isLoading = false) }
-            // Fetch and update widget
             repository.fetchQuotas(key)
                 .onSuccess { quotas ->
                     TokenWidgetUpdater.updateWidget(context, quotas, fontSizeRepository)
                 }
-                .onFailure { _ ->
-                    // Silent fail, user can retry
-                }
+                .onFailure { _ -> }
         }
     }
 
     fun clearKey() {
         viewModelScope.launch {
-            repository.clearApiKey()
+            repository.clearAllApiKeys()
             _uiState.update { it.copy(apiKey = "", hasKey = false, isEditing = false) }
         }
     }
 
-    // MD3E Theme Settings
+    // --- 多 Key 管理 ---
+
+    fun addApiKey(name: String, key: String) {
+        viewModelScope.launch {
+            repository.saveApiKey(key.trim(), name.trim())
+        }
+    }
+
+    fun activateApiKey(id: String) {
+        viewModelScope.launch {
+            repository.setActiveApiKey(id)
+            val profiles = repository.apiKeyProfiles.first()
+            val profile = profiles.find { it.id == id }
+            if (profile != null) {
+                repository.fetchQuotas(profile.key)
+                    .onSuccess { quotas ->
+                        TokenWidgetUpdater.updateWidget(context, quotas, fontSizeRepository)
+                    }
+            }
+        }
+    }
+
+    fun deleteApiKey(id: String) {
+        viewModelScope.launch {
+            val profiles = repository.apiKeyProfiles.first()
+            repository.deleteApiKeyProfile(id)
+            val remaining = profiles.filter { it.id != id }
+            if (remaining.isNotEmpty()) {
+                repository.setActiveApiKey(remaining.first().id)
+            }
+        }
+    }
+
+    fun updateApiKeyProfile(profile: ApiKeyProfile) {
+        viewModelScope.launch {
+            repository.updateApiKeyProfile(profile)
+        }
+    }
+
+    // --- Theme Settings ---
+
     fun setDynamicColor(enabled: Boolean) {
         viewModelScope.launch {
             themeRepository.saveDynamicColor(enabled)
@@ -107,24 +164,16 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setPaletteStyle(style: PaletteStyle) {
-        viewModelScope.launch {
-            themeRepository.savePaletteStyle(style)
-            TokenWidgetUpdater.refreshWidgets(context, fontSizeRepository)
-        }
-    }
-
-    fun setContrastLevel(level: ContrastLevel) {
-        viewModelScope.launch {
-            themeRepository.saveContrastLevel(level)
-            TokenWidgetUpdater.refreshWidgets(context, fontSizeRepository)
-        }
-    }
-
     fun setPureBlack(enabled: Boolean) {
         viewModelScope.launch {
             themeRepository.savePureBlack(enabled)
             TokenWidgetUpdater.refreshWidgets(context, fontSizeRepository)
+        }
+    }
+
+    fun setHapticFeedback(enabled: Boolean) {
+        viewModelScope.launch {
+            themeRepository.saveHapticFeedback(enabled)
         }
     }
 }

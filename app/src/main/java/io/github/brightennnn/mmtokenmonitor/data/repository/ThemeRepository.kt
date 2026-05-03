@@ -7,9 +7,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import io.github.brightennnn.mmtokenmonitor.domain.model.ContrastLevel
 import io.github.brightennnn.mmtokenmonitor.domain.model.DarkMode
-import io.github.brightennnn.mmtokenmonitor.domain.model.PaletteStyle
 import io.github.brightennnn.mmtokenmonitor.domain.model.ThemeSettings
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.EntryPoint
@@ -35,37 +33,23 @@ class ThemeRepository @Inject constructor(
 ) {
     private object Keys {
         val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
-        val PALETTE_STYLE = intPreferencesKey("palette_style")
-        val CONTRAST_LEVEL = intPreferencesKey("contrast_level")
         val DARK_MODE = intPreferencesKey("dark_mode")
         val PURE_BLACK = booleanPreferencesKey("pure_black")
+        val HAPTIC_FEEDBACK = booleanPreferencesKey("haptic_feedback")
     }
 
     val themeSettings: Flow<ThemeSettings> = context.themeDataStore.data.map { prefs ->
         ThemeSettings(
             dynamicColor = prefs[Keys.DYNAMIC_COLOR] ?: true,
-            paletteStyle = PaletteStyle.fromId(prefs[Keys.PALETTE_STYLE] ?: 1),
-            contrastLevel = ContrastLevel.fromOrdinal(prefs[Keys.CONTRAST_LEVEL] ?: 2),
             darkMode = DarkMode.fromOrdinal(prefs[Keys.DARK_MODE] ?: 0),
-            pureBlack = prefs[Keys.PURE_BLACK] ?: false
+            pureBlack = prefs[Keys.PURE_BLACK] ?: false,
+            hapticFeedback = prefs[Keys.HAPTIC_FEEDBACK] ?: true
         )
     }
 
     suspend fun saveDynamicColor(enabled: Boolean) {
         context.themeDataStore.edit { prefs ->
             prefs[Keys.DYNAMIC_COLOR] = enabled
-        }
-    }
-
-    suspend fun savePaletteStyle(style: PaletteStyle) {
-        context.themeDataStore.edit { prefs ->
-            prefs[Keys.PALETTE_STYLE] = style.id
-        }
-    }
-
-    suspend fun saveContrastLevel(level: ContrastLevel) {
-        context.themeDataStore.edit { prefs ->
-            prefs[Keys.CONTRAST_LEVEL] = level.ordinal
         }
     }
 
@@ -78,6 +62,12 @@ class ThemeRepository @Inject constructor(
     suspend fun savePureBlack(enabled: Boolean) {
         context.themeDataStore.edit { prefs ->
             prefs[Keys.PURE_BLACK] = enabled
+        }
+    }
+
+    suspend fun saveHapticFeedback(enabled: Boolean) {
+        context.themeDataStore.edit { prefs ->
+            prefs[Keys.HAPTIC_FEEDBACK] = enabled
         }
     }
 }

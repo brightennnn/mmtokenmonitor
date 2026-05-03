@@ -6,19 +6,21 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import io.github.brightennnn.mmtokenmonitor.data.repository.FontSizeRepository
-import io.github.brightennnn.mmtokenmonitor.data.repository.FontSizeRepositoryEntryPoint
-import io.github.brightennnn.mmtokenmonitor.domain.model.AppFontSizes
+import io.github.brightennnn.mmtokenmonitor.data.repository.ThemeRepository
 import io.github.brightennnn.mmtokenmonitor.domain.model.ModelQuota
+import io.github.brightennnn.mmtokenmonitor.ui.components.HapticFeedback
+import io.github.brightennnn.mmtokenmonitor.ui.components.LocalHapticFeedbackEnabled
 import dagger.hilt.android.EntryPointAccessors
 import java.time.Instant
 import java.time.ZoneId
@@ -27,102 +29,117 @@ import java.time.format.DateTimeFormatter
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    viewModel: HomeViewModel = hiltViewModel()
+    viewModel: HomeViewModel = hiltViewModel(),
+    themeRepository: ThemeRepository? = null
 ) {
+    val view = LocalView.current
     val uiState by viewModel.uiState.collectAsState()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("MiniMax Token Monitor") },
-                actions = {
-                    if (uiState.hasKey) {
-                        IconButton(onClick = { viewModel.refresh() }) {
-                            Icon(Icons.Default.Refresh, contentDescription = "刷新")
+    val themeSettings by themeRepository?.themeSettings?.collectAsState(initial = null)
+        ?: remember { mutableStateOf(null) }
+
+    val pullToRefreshState = rememberPullToRefreshState()
+
+    CompositionLocalProvider(LocalHapticFeedbackEnabled provides (themeSettings?.hapticFeedback ?: true)) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("MiniMax Token Monitor") },
+                    actions = {
+                        if (uiState.hasKey) {
+                            IconButton(
+                                onClick = {
+                                    HapticFeedback.perform(view)
+                                    viewModel.refresh()
+                                }
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = "刷新")
+                            }
+                        }
+                    },
+                    windowInsets = WindowInsets(0.dp),
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                )
+            }
+        ) { innerPadding ->
+            PullToRefreshBox(
+                isRefreshing = uiState.isLoading,
+                onRefresh = { viewModel.refresh() },
+                state = pullToRefreshState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = 64.dp)
+                    .padding(bottom = innerPadding.calculateBottomPadding())
+            ) {
+                if (uiState.error != null) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
+                        )
+                    ) {
+                        Text(
+                            text = uiState.error!!,
+                            modifier = Modifier.padding(16.dp),
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
+
+                if (!uiState.hasKey) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "请先设置 API Key",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "点击右上角设置按钮添加",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                            )
                         }
                     }
                 }
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp)
-        ) {
-            Spacer(modifier = Modifier.height(16.dp))
 
-            // 错误信息
-            if (uiState.error != null) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer
-                    )
-                ) {
-                    Text(
-                        text = uiState.error!!,
-                        modifier = Modifier.padding(16.dp),
-                        color = MaterialTheme.colorScheme.onErrorContainer
-                    )
+                val visibleQuotas = uiState.quotas.filter { quota ->
+                    val remaining = quota.intervalTotal - quota.intervalUsed
+                    remaining != 0
                 }
-                Spacer(modifier = Modifier.height(12.dp))
-            }
 
-            // 无 Key 时提示
-            if (!uiState.hasKey) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp)
+                if (visibleQuotas.isNotEmpty()) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(visibleQuotas) { quota ->
+                            QuotaCard(quota = quota)
+                        }
+                    }
+                } else if (uiState.hasKey && uiState.error == null && !uiState.isLoading) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "请先设置 API Key",
+                            text = "暂无用量数据",
                             style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "点击右上角设置按钮添加",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
-                        )
-                    }
-                }
-            }
-
-            // 加载状态
-            if (uiState.isLoading) {
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
-            }
-
-            // 模型列表（过滤掉 0/0 的 和 coding-plan）
-            val visibleQuotas = uiState.quotas.filter {
-                val hasData = it.intervalUsed > 0 || it.intervalTotal > 0 || it.weeklyUsed > 0 || it.weeklyTotal > 0
-                val notCodingPlan = !it.modelName.contains("coding-plan", ignoreCase = true)
-                hasData && notCodingPlan
-            }
-            if (visibleQuotas.isNotEmpty()) {
-                Text(
-                    text = "模型用量",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(visibleQuotas) { quota ->
-                        QuotaCard(quota = quota)
                     }
                 }
             }
@@ -132,15 +149,6 @@ fun HomeScreen(
 
 @Composable
 private fun QuotaCard(quota: ModelQuota) {
-    val context = LocalContext.current
-    val fontSizeRepository = remember {
-        EntryPointAccessors.fromApplication(
-            context.applicationContext,
-            FontSizeRepositoryEntryPoint::class.java
-        ).fontSizeRepository()
-    }
-    val fontSizes by fontSizeRepository.appFontSizes.collectAsState(initial = AppFontSizes())
-
     val beijingZone = ZoneId.of("Asia/Shanghai")
     val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
     val dateFormatter = DateTimeFormatter.ofPattern("MM-dd")
@@ -150,41 +158,55 @@ private fun QuotaCard(quota: ModelQuota) {
     val weeklyStart = Instant.ofEpochMilli(quota.weeklyStartMs).atZone(beijingZone)
     val weeklyEnd = Instant.ofEpochMilli(quota.weeklyEndMs).atZone(beijingZone)
 
+    // 判断是否为5小时模型（coding-plan 或 MiniMax-M 系列有5小时时间窗口）
+    val isFiveHourModel = quota.modelName.contains("coding-plan", ignoreCase = true)
+        || quota.modelName.contains("MiniMax-M", ignoreCase = true)
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        )
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 16.dp)
         ) {
             Text(
                 text = displayModelName(quota.modelName),
-                fontSize = fontSizes.modelTitle.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold
             )
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 5小时用量：label+时间段居左，用量居右
+            // 时间窗口1：5小时 or 一天
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                val intervalLabel = if (isFiveHourModel) {
+                    "5小时用量（${intervalStart.format(timeFormatter)} - ${intervalEnd.format(timeFormatter)}）"
+                } else {
+                    val today = java.time.LocalDate.now(beijingZone)
+                    "今日用量（${today.format(DateTimeFormatter.ofPattern("MM-dd"))}）"
+                }
                 Text(
-                    text = "5小时用量（${intervalStart.format(timeFormatter)} - ${intervalEnd.format(timeFormatter)}）",
-                    fontSize = fontSizes.intervalLabel.sp,
+                    text = intervalLabel,
+                    fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     text = "${quota.intervalUsed} / ${quota.intervalTotal}",
-                    fontSize = fontSizes.intervalNumber.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                     color = if (quota.intervalUsed > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Spacer(modifier = Modifier.height(4.dp))
-            // 进度条 + 百分比
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -195,62 +217,63 @@ private fun QuotaCard(quota: ModelQuota) {
                     modifier = Modifier
                         .weight(1f)
                         .height(8.dp),
-                    color = if (intervalFraction > 0.8f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    color = MaterialTheme.colorScheme.primary,
                     trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "${(intervalFraction * 100).toInt().toString().padStart(3)}%",
-                    fontSize = fontSizes.intervalPercent.sp,
+                    fontSize = 12.sp,
                     fontFamily = FontFamily.Monospace,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(12.dp))
+            if (isFiveHourModel) {
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(12.dp))
 
-            // 本周用量：label+日期居左，用量居右
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "本周用量（${weeklyStart.format(dateFormatter)} ~ ${weeklyEnd.format(dateFormatter)}）",
-                    fontSize = fontSizes.weeklyLabel.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "${quota.weeklyUsed} / ${quota.weeklyTotal}",
-                    fontSize = fontSizes.weeklyNumber.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = if (quota.weeklyUsed > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            // 进度条 + 百分比
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val weeklyFraction = if (quota.weeklyTotal > 0) quota.weeklyUsed.toFloat() / quota.weeklyTotal.toFloat() else 0f
-                LinearProgressIndicator(
-                    progress = { weeklyFraction },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(8.dp),
-                    color = if (weeklyFraction > 0.8f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "${(weeklyFraction * 100).toInt().toString().padStart(3)}%",
-                    fontSize = fontSizes.weeklyPercent.sp,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                // 本周用量（仅5小时模型显示）
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "本周用量（${weeklyStart.format(dateFormatter)} ~ ${weeklyEnd.format(dateFormatter)}）",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "${quota.weeklyUsed} / ${quota.weeklyTotal}",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = if (quota.weeklyUsed > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val weeklyFraction = if (quota.weeklyTotal > 0) quota.weeklyUsed.toFloat() / quota.weeklyTotal.toFloat() else 0f
+                    LinearProgressIndicator(
+                        progress = { weeklyFraction },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(8.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "${(weeklyFraction * 100).toInt().toString().padStart(3)}%",
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }

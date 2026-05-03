@@ -1,17 +1,15 @@
 package io.github.brightennnn.mmtokenmonitor.widget
 
 import android.content.Context
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
-import androidx.glance.action.actionStartActivity
+import androidx.glance.appwidget.action.actionSendBroadcast
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.LinearProgressIndicator
 import androidx.glance.appwidget.cornerRadius
-import androidx.glance.layout.padding
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
 import androidx.glance.color.ColorProvider
@@ -21,11 +19,12 @@ import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
+import androidx.glance.layout.padding
+import androidx.glance.layout.width
 import androidx.glance.text.FontStyle
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
-import io.github.brightennnn.mmtokenmonitor.MainActivity
 import org.json.JSONObject
 import java.io.File
 
@@ -43,7 +42,7 @@ class GlanceIntervalWidget : GlanceAppWidget() {
                     .background(ColorProvider(colors.background, colors.background))
                     .padding(16.dp)
                     .cornerRadius(16.dp)
-                    .clickable(actionStartActivity<MainActivity>()),
+                    .clickable(actionSendBroadcast<WidgetAlarmReceiver>()),
                 verticalAlignment = Alignment.Top,
                 horizontalAlignment = Alignment.Start
             ) {
@@ -58,9 +57,8 @@ class GlanceIntervalWidget : GlanceAppWidget() {
                 )
                 Spacer(GlanceModifier.height(8.dp))
                 // Remaining
-                val remaining = (data.intervalTotal - data.intervalUsed).coerceAtLeast(0)
                 Text(
-                    text = formatNumber(remaining),
+                    text = formatNumber((data.intervalTotal - data.intervalUsed).coerceAtLeast(0)),
                     style = TextStyle(
                         color = ColorProvider(colors.primary, colors.primary),
                         fontWeight = FontWeight.Bold,
@@ -76,7 +74,7 @@ class GlanceIntervalWidget : GlanceAppWidget() {
                     )
                 )
                 Spacer(GlanceModifier.height(12.dp))
-                // Progress
+                // Progress — stepped bar (10 segments)
                 val pct = if (data.intervalTotal > 0) {
                     ((data.intervalTotal - data.intervalUsed).toFloat() / data.intervalTotal).coerceIn(0f, 1f)
                 } else 0f
@@ -93,7 +91,7 @@ class GlanceIntervalWidget : GlanceAppWidget() {
                 Text(
                     text = "已用 ${data.intervalUsed} / ${data.intervalTotal}",
                     style = TextStyle(
-                        color = ColorProvider(colors.onSurfaceVariant, colors.onSurfaceVariant),
+                        color = ColorProvider(colors.secondary, colors.secondary),
                         fontSize = 11.sp
                     )
                 )

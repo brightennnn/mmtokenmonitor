@@ -39,7 +39,7 @@ class HomeViewModel @Inject constructor(
 
     private fun checkHasKey() {
         viewModelScope.launch {
-            val key = repository.apiKey.first()
+            val key = repository.activeApiKey.first()
             val hasKey = !key.isNullOrBlank()
             _uiState.update { it.copy(hasKey = hasKey) }
             if (hasKey) {
@@ -50,7 +50,7 @@ class HomeViewModel @Inject constructor(
 
     fun refresh() {
         viewModelScope.launch {
-            val savedKey = repository.apiKey.first()
+            val savedKey = repository.activeApiKey.first()
             if (!savedKey.isNullOrBlank()) {
                 fetchQuotas(savedKey)
             } else {
@@ -65,6 +65,7 @@ class HomeViewModel @Inject constructor(
             repository.fetchQuotas(key)
                 .onSuccess { quotas ->
                     _uiState.update { it.copy(quotas = quotas, isLoading = false) }
+                    // 同步刷新 widget
                     TokenWidgetUpdater.updateWidget(context, quotas, fontSizeRepository)
                 }
                 .onFailure { e ->

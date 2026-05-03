@@ -24,14 +24,17 @@ object TokenWidgetUpdater {
      */
     suspend fun updateWidget(context: Context, quotas: List<ModelQuota>, fontSizeRepository: FontSizeRepository) {
         android.util.Log.d("TokenWidget", "updateWidget called with ${quotas.size} quotas")
+        // 优先使用 MiniMax-M 系列模型（排除 coding-plan）
         val minimaxModel = quotas.filter {
             !it.modelName.contains("coding-plan", ignoreCase = true)
+                && it.modelName.contains("MiniMax-M", ignoreCase = true)
         }.firstOrNull {
             it.intervalUsed > 0 || it.intervalTotal > 0 || it.weeklyUsed > 0 || it.weeklyTotal > 0
         } ?: quotas.filter {
             !it.modelName.contains("coding-plan", ignoreCase = true)
+                && it.modelName.contains("MiniMax-M", ignoreCase = true)
         }.firstOrNull() ?: run {
-            android.util.Log.d("TokenWidget", "No non-coding-plan model found")
+            android.util.Log.d("TokenWidget", "No MiniMax-M model found")
             return
         }
         android.util.Log.d("TokenWidget", "Using model: ${minimaxModel.modelName}, interval: ${minimaxModel.intervalUsed}/${minimaxModel.intervalTotal}, weekly: ${minimaxModel.weeklyUsed}/${minimaxModel.weeklyTotal}")
@@ -85,8 +88,6 @@ object TokenWidgetUpdater {
             put("dynamicColor", themeSettings?.dynamicColor ?: true)
             put("darkMode", themeSettings?.darkMode?.ordinal ?: 0)
             put("pureBlack", themeSettings?.pureBlack ?: false)
-            put("paletteStyle", themeSettings?.paletteStyle?.id ?: 1)
-            put("contrastLevel", themeSettings?.contrastLevel?.ordinal ?: 2)
         }
         val file = File(context.filesDir, WIDGET_DATA_FILE)
         withContext(Dispatchers.IO) {
@@ -120,12 +121,9 @@ object TokenWidgetUpdater {
                 json.put("widgetProgressBarSize", widgetFontSizes.progressBar)
                 json.put("widgetPercentSize", widgetFontSizes.percent)
                 json.put("widgetUpdateTimeSize", widgetFontSizes.updateTime)
-                // 主题设置也要写入 JSON
                 json.put("dynamicColor", themeSettings?.dynamicColor ?: true)
                 json.put("darkMode", themeSettings?.darkMode?.ordinal ?: 0)
                 json.put("pureBlack", themeSettings?.pureBlack ?: false)
-                json.put("paletteStyle", themeSettings?.paletteStyle?.id ?: 1)
-                json.put("contrastLevel", themeSettings?.contrastLevel?.ordinal ?: 2)
                 withContext(Dispatchers.IO) {
                     file.writeText(json.toString())
                 }
@@ -137,12 +135,23 @@ object TokenWidgetUpdater {
         bumpWidgetState(context)
     }
 
-    private suspend fun bumpWidgetState(context: Context) {
-        // Update RemoteViews widgets
-        CanvasIntervalWidget.updateAllWidgets(context)
-        AnimWeeklyWidget.updateAllWidgets(context)
+    /**
+     * 仅刷新 Widget 显示（从 widget_data.json 读取现有数据，不重新拉取）
+     * 打开 app 刷新数据后调用，同步 widget 显示
+     */
+    suspend fun refreshWidgetDisplay(context: Context) {
+        bumpWidgetState(context)
+    }
 
-        // Update Glance widgets using GlanceAppWidgetManager for reliability
+    /**
+     * 刷新所有 widget（点击触发，不重新拉取数据，只更新显示）
+     */
+    suspend fun updateAllWidgets(context: Context) {
+        bumpWidgetState(context)
+    }
+
+    private suspend fun bumpWidgetState(context: Context) {
+        // Update Glance widgets
         updateGlanceWidgets(context)
     }
 
