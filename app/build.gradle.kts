@@ -11,10 +11,10 @@ android {
 
     signingConfigs {
         register("release") {
-            storeFile = file("/root/.assist/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+            storeFile = rootProject.file(System.getenv("KEYSTORE_FILE") ?: "release.jks")
+            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "qiuhyu677"
+            keyAlias = System.getenv("KEYSTORE_ALIAS") ?: "release"
+            keyPassword = System.getenv("KEYSTORE_PASSWORD") ?: "qiuhyu677"
         }
     }
 
