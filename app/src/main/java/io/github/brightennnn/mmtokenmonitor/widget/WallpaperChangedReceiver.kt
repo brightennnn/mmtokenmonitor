@@ -13,10 +13,6 @@ class WallpaperChangedReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_WALLPAPER_CHANGED) {
-            // 刷新 RemoteViews widget
-            AnimWeeklyWidget.updateAllWidgets(context)
-            CanvasIntervalWidget.updateAllWidgets(context)
-
             // 刷新 Glance widgets
             runBlocking {
                 GlanceIntervalWidget().updateAll(context)
