@@ -5,28 +5,31 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
-import androidx.glance.appwidget.action.actionSendBroadcast
+import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.LinearProgressIndicator
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
+import androidx.glance.appwidget.action.actionSendBroadcast
 import androidx.glance.background
 import androidx.glance.color.ColorProvider
 import androidx.glance.layout.Alignment
+import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
-import androidx.glance.layout.width
+import androidx.glance.layout.size
 import androidx.glance.text.FontStyle
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import org.json.JSONObject
 import java.io.File
+import io.github.brightennnn.mmtokenmonitor.MainActivity
 
 /** 本周剩余 Widget — 跟随 app 主题配色 */
 class GlanceWeeklyWidget : GlanceAppWidget() {
@@ -36,70 +39,102 @@ class GlanceWeeklyWidget : GlanceAppWidget() {
         val colors = WidgetColors.fromContext(context)
 
         provideContent {
-            Column(
+            Box(
                 modifier = GlanceModifier
                     .fillMaxSize()
                     .background(ColorProvider(colors.background, colors.background))
-                    .padding(16.dp)
                     .cornerRadius(16.dp)
-                    .clickable(actionSendBroadcast<WidgetAlarmReceiver>()),
-                verticalAlignment = Alignment.Top,
-                horizontalAlignment = Alignment.Start
+                    .clickable(actionStartActivity<MainActivity>()),
             ) {
-                Text(
-                    text = "本周剩余",
-                    style = TextStyle(
-                        color = ColorProvider(colors.onSurface, colors.onSurface),
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 14.sp
-                    )
-                )
-                Spacer(GlanceModifier.height(8.dp))
-                Text(
-                    text = formatNumber((data.weeklyTotal - data.weeklyUsed).coerceAtLeast(0)),
-                    style = TextStyle(
-                        color = ColorProvider(colors.primary, colors.primary),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 28.sp
-                    )
-                )
-                Spacer(GlanceModifier.height(4.dp))
-                Text(
-                    text = data.weeklyPeriod,
-                    style = TextStyle(
-                        color = ColorProvider(colors.onSurfaceVariant, colors.onSurfaceVariant),
-                        fontSize = 10.sp
-                    )
-                )
-                Spacer(GlanceModifier.height(12.dp))
-                val pct = if (data.weeklyTotal > 0) {
-                    ((data.weeklyTotal - data.weeklyUsed).toFloat() / data.weeklyTotal).coerceIn(0f, 1f)
-                } else 0f
-                LinearProgressIndicator(
-                    progress = pct,
+                // Main content
+                Column(
                     modifier = GlanceModifier
-                        .fillMaxWidth()
-                        .height(8.dp)
-                        .cornerRadius(4.dp),
-                    color = ColorProvider(colors.primary, colors.primary),
-                    backgroundColor = ColorProvider(colors.surfaceVariant, colors.surfaceVariant)
-                )
-                Spacer(GlanceModifier.height(6.dp))
-                Text(
-                    text = "已用 ${data.weeklyUsed} / ${data.weeklyTotal}",
-                    style = TextStyle(
-                        color = ColorProvider(colors.secondary, colors.secondary),
-                        fontSize = 11.sp
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.Top,
+                    horizontalAlignment = Alignment.Start
+                ) {
+                    Text(
+                        text = "本周剩余",
+                        style = TextStyle(
+                            color = ColorProvider(colors.onSurface, colors.onSurface),
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 14.sp
+                        )
                     )
-                )
-                Text(
-                    text = data.lastUpdate,
-                    style = TextStyle(
-                        color = ColorProvider(colors.outline, colors.outline),
-                        fontSize = 9.sp,
-                        fontStyle = FontStyle.Italic
+                    Spacer(GlanceModifier.height(8.dp))
+                    Text(
+                        text = formatNumber((data.weeklyTotal - data.weeklyUsed).coerceAtLeast(0)),
+                        style = TextStyle(
+                            color = ColorProvider(colors.primary, colors.primary),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 28.sp
+                        )
                     )
-                )
+                    Spacer(GlanceModifier.height(4.dp))
+                    Text(
+                        text = data.weeklyPeriod,
+                        style = TextStyle(
+                            color = ColorProvider(colors.onSurfaceVariant, colors.onSurfaceVariant),
+                            fontSize = 10.sp
+                        )
+                    )
+                    Spacer(GlanceModifier.height(12.dp))
+                    val pct = if (data.weeklyTotal > 0) {
+                        ((data.weeklyTotal - data.weeklyUsed).toFloat() / data.weeklyTotal).coerceIn(0f, 1f)
+                    } else 0f
+                    LinearProgressIndicator(
+                        progress = pct,
+                        modifier = GlanceModifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .cornerRadius(4.dp),
+                        color = ColorProvider(colors.primary, colors.primary),
+                        backgroundColor = ColorProvider(colors.surfaceVariant, colors.surfaceVariant)
+                    )
+                    Spacer(GlanceModifier.height(6.dp))
+                    Text(
+                        text = "已用 ${data.weeklyUsed} / ${data.weeklyTotal}",
+                        style = TextStyle(
+                            color = ColorProvider(colors.secondary, colors.secondary),
+                            fontSize = 11.sp
+                        )
+                    )
+                    Text(
+                        text = data.lastUpdate,
+                        style = TextStyle(
+                            color = ColorProvider(colors.outline, colors.outline),
+                            fontSize = 9.sp,
+                            fontStyle = FontStyle.Italic
+                        )
+                    )
+                }
+
+                // Refresh button in top-right corner
+                Box(
+                    modifier = GlanceModifier
+                        .fillMaxSize()
+                        .padding(8.dp),
+                    contentAlignment = Alignment.TopEnd
+                ) {
+                    Box(
+                        modifier = GlanceModifier
+                            .size(32.dp)
+                            .cornerRadius(8.dp)
+                            .background(ColorProvider(colors.surfaceVariant, colors.surfaceVariant))
+                            .clickable(actionSendBroadcast<WidgetAlarmReceiver>()),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "↻",
+                            style = TextStyle(
+                                color = ColorProvider(colors.onSurfaceVariant, colors.onSurfaceVariant),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                    }
+                }
             }
         }
     }
