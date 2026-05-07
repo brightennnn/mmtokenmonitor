@@ -124,6 +124,7 @@ class GlanceIntervalWidget : GlanceAppWidget() {
                         modifier = GlanceModifier
                             .size(32.dp)
                             .cornerRadius(8.dp)
+                            .background(ColorProvider(colors.background, colors.background))
                             .clickable(actionSendBroadcast<WidgetAlarmReceiver>()),
                         contentAlignment = Alignment.Center
                     ) {
